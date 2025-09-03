@@ -753,8 +753,255 @@ if st.session_state.processing:
 
 # Display results
 if st.session_state.last_response:
+    # Progress indicator showing completion
+    st.markdown('''
+    <div style="text-align: center; margin: 3rem 0;">
+        <div style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 2rem;">
+            <div style="background: #28a745; color: white; padding: 1rem 2rem; border-radius: 25px; font-weight: 600;">
+                ✅ STEP 1: Method Selected
+            </div>
+            <div style="background: #28a745; color: white; padding: 1rem 2rem; border-radius: 25px; font-weight: 600;">
+                ✅ STEP 2: AI Analysis Complete
+            </div>
+            <div style="background: #28a745; color: white; padding: 1rem 2rem; border-radius: 25px; font-weight: 600;">
+                ✅ STEP 3: Decision Ready
+            </div>
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
+    
     st.markdown('<div class="response-container">', unsafe_allow_html=True)
-    st.markdown("### 🤖 AI Loan Officer Decision")
+    
+    # Parse loan data
+    loan_data = parse_loan_data(st.session_state.last_response)
+    
+    # Clear decision header with status
+    st.markdown('''
+    <div style="text-align: center; margin-bottom: 3rem;">
+        <h2 style="color: #1a1a1a; font-size: 2.5rem; margin-bottom: 1rem; font-weight: 700;">
+            🤖 AI Loan Decision Report
+        </h2>
+        <p style="color: #6b7280; font-size: 1.1rem;">
+            Comprehensive analysis completed by our advanced AI system
+        </p>
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    # Decision status with enhanced styling
+    if loan_data['decision'] == 'APPROVED':
+        st.markdown('''
+        <div style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); 
+                    border: 3px solid #28a745; color: #155724; padding: 2rem; 
+                    border-radius: 20px; margin: 2rem 0; text-align: center; 
+                    box-shadow: 0 8px 30px rgba(40,167,69,0.3);">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">🎉</div>
+            <div style="font-size: 2rem; font-weight: 800; text-transform: uppercase; 
+                        letter-spacing: 0.1em; margin-bottom: 1rem;">
+                CONGRATULATIONS! LOAN APPROVED
+            </div>
+            <div style="font-size: 1.2rem; font-weight: 600;">
+                Your application has been successfully approved by our AI system
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
+    elif loan_data['decision'] == 'REJECTED':
+        st.markdown('''
+        <div style="background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%); 
+                    border: 3px solid #dc3545; color: #721c24; padding: 2rem; 
+                    border-radius: 20px; margin: 2rem 0; text-align: center;
+                    box-shadow: 0 8px 30px rgba(220,53,69,0.3);">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
+            <div style="font-size: 2rem; font-weight: 800; text-transform: uppercase; 
+                        letter-spacing: 0.1em; margin-bottom: 1rem;">
+                APPLICATION STATUS: NOT APPROVED
+            </div>
+            <div style="font-size: 1.2rem; font-weight: 600;">
+                We appreciate your interest and encourage you to review the feedback below
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
+    else:
+        st.markdown('''
+        <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); 
+                    border: 3px solid #ffc107; color: #856404; padding: 2rem; 
+                    border-radius: 20px; margin: 2rem 0; text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">⏳</div>
+            <div style="font-size: 2rem; font-weight: 800; text-transform: uppercase; 
+                        letter-spacing: 0.1em; margin-bottom: 1rem;">
+                APPLICATION UNDER REVIEW
+            </div>
+            <div style="font-size: 1.2rem; font-weight: 600;">
+                Additional information may be required
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
+
+    # Key details summary
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f'''
+        <div style="background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 12px; 
+                    padding: 1.5rem; text-align: center; height: 120px; display: flex; 
+                    flex-direction: column; justify-content: center;">
+            <div style="font-size: 1.8rem; margin-bottom: 0.5rem;">👤</div>
+            <div style="font-weight: 700; color: #1a1a1a; font-size: 1.1rem;">Applicant</div>
+            <div style="color: #6b7280; font-size: 1rem;">{loan_data['applicant_name']}</div>
+        </div>
+        ''', unsafe_allow_html=True)
+    
+    with col2:
+        amount_display = f"${loan_data['loan_amount']:,}" if loan_data['loan_amount'] > 0 else "Not specified"
+        st.markdown(f'''
+        <div style="background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 12px; 
+                    padding: 1.5rem; text-align: center; height: 120px; display: flex; 
+                    flex-direction: column; justify-content: center;">
+            <div style="font-size: 1.8rem; margin-bottom: 0.5rem;">💰</div>
+            <div style="font-weight: 700; color: #1a1a1a; font-size: 1.1rem;">Loan Amount</div>
+            <div style="color: #6b7280; font-size: 1rem;">{amount_display}</div>
+        </div>
+        ''', unsafe_allow_html=True)
+    
+    with col3:
+        rate_display = f"{loan_data['interest_rate']}% APR" if loan_data['interest_rate'] > 0 else "TBD"
+        st.markdown(f'''
+        <div style="background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 12px; 
+                    padding: 1.5rem; text-align: center; height: 120px; display: flex; 
+                    flex-direction: column; justify-content: center;">
+            <div style="font-size: 1.8rem; margin-bottom: 0.5rem;">📊</div>
+            <div style="font-weight: 700; color: #1a1a1a; font-size: 1.1rem;">Interest Rate</div>
+            <div style="color: #6b7280; font-size: 1rem;">{rate_display}</div>
+        </div>
+        ''', unsafe_allow_html=True)
+
+    # Detailed Analysis Section
+    st.markdown('''
+    <div style="margin: 3rem 0 2rem 0;">
+        <h3 style="color: #1a1a1a; font-size: 1.8rem; font-weight: 700; margin-bottom: 1rem; text-align: center;">
+            📄 Detailed Analysis & Recommendations
+        </h3>
+        <p style="text-align: center; color: #6b7280; margin-bottom: 2rem;">
+            Our AI has thoroughly analyzed your application and provided the following insights
+        </p>
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    # Enhanced agent response styling
+    st.markdown('''
+    <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
+                border-left: 5px solid #1a1a1a; padding: 2.5rem; border-radius: 12px; 
+                margin: 2rem 0; font-size: 1.1rem; line-height: 1.8; 
+                box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+    ''', unsafe_allow_html=True)
+    
+    st.write(st.session_state.last_response)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Enhanced download section
+    st.markdown('''
+    <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); 
+                border: 3px solid #2196f3; border-radius: 20px; padding: 3rem; 
+                margin: 3rem 0; box-shadow: 0 8px 30px rgba(33,150,243,0.2);">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">📑</div>
+            <div style="font-size: 2rem; font-weight: 700; color: #0d47a1; margin-bottom: 1rem;">
+                Professional Documents Ready
+            </div>
+            <div style="font-size: 1.2rem; color: #1565c0; margin-bottom: 2rem;">
+                Your personalized loan documents have been generated and are ready for download
+            </div>
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2, gap="large")
+    
+    with col1:
+        st.markdown('''
+        <div style="text-align: center; margin-bottom: 1rem;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+            <h4 style="color: #1a1a1a; margin-bottom: 0.5rem;">Comprehensive Analysis Report</h4>
+            <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">
+                Detailed 5-page professional report with complete analysis
+            </p>
+        </div>
+        ''', unsafe_allow_html=True)
+        
+        # Generate report PDF
+        try:
+            report_pdf = generate_loan_report(loan_data)
+            st.download_button(
+                label="📊 Download Detailed Report",
+                data=report_pdf,
+                file_name=f"GITEX_Loan_Report_{loan_data['applicant_name'].replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                help="Professional multi-page report with complete loan analysis"
+            )
+        except Exception as e:
+            st.error(f"Report generation error: {str(e)}")
+    
+    with col2:
+        st.markdown('''
+        <div style="text-align: center; margin-bottom: 1rem;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📝</div>
+            <h4 style="color: #1a1a1a; margin-bottom: 0.5rem;">Official Decision Letter</h4>
+            <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1rem;">
+                Formal decision letter on official bank letterhead
+            </p>
+        </div>
+        ''', unsafe_allow_html=True)
+        
+        # Generate letter PDF
+        try:
+            letter_pdf = generate_decision_letter(loan_data)
+            st.download_button(
+                label="📝 Download Decision Letter",
+                data=letter_pdf,
+                file_name=f"GITEX_Decision_Letter_{loan_data['applicant_name'].replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                help="Official bank decision letter with next steps"
+            )
+        except Exception as e:
+            st.error(f"Letter generation error: {str(e)}")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Session info and next steps
+    st.markdown(f'''
+    <div style="background: #f8f9fa; border: 1px solid #e9ecef; padding: 2rem; 
+                border-radius: 12px; margin: 2rem 0; text-align: center;">
+        <div style="color: #6b7280; font-size: 0.95rem; margin-bottom: 1rem;">
+            <strong>Session Details:</strong> Report generated on {loan_data["timestamp"]} | 
+            Session ID: {st.session_state.session_id[-8:]}
+        </div>
+        <div style="color: #374151; font-size: 1rem; font-weight: 600;">
+            🛡️ All data processed securely • 🤖 Powered by advanced AI • ⚡ Instant decisions
+        </div>
+    </div>
+    ''', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # New application section with clear call-to-action
+    st.markdown('''
+    <div style="text-align: center; margin: 3rem 0 2rem 0;">
+        <div style="background: #f3f4f6; border: 2px solid #d1d5db; border-radius: 16px; 
+                    padding: 2rem; max-width: 500px; margin: 0 auto;">
+            <div style="font-size: 2rem; margin-bottom: 1rem;">🔄</div>
+            <h3 style="color: #1a1a1a; margin-bottom: 1rem;">Need Another Analysis?</h3>
+            <p style="color: #6b7280; margin-bottom: 2rem;">
+                Process another loan application or request additional analysis
+            </p>
+    ''', unsafe_allow_html=True)
+    
+    if st.button("🆕 Process Another Application", use_container_width=True, type="secondary"):
+        st.session_state.last_response = None
+        st.session_state.processing = False
+        st.rerun()
+    
+    st.markdown('</div></div>', unsafe_allow_html=True)### 🤖 AI Loan Officer Decision")
     
     # Parse loan data
     loan_data = parse_loan_data(st.session_state.last_response)

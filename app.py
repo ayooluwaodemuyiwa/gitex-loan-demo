@@ -453,24 +453,30 @@ for i, message in enumerate(st.session_state.chat_messages):
     if message['role'] == 'bot' and ('APPROVED' in message['content'] or 'REJECTED' in message['content']) and len(message['content']) > 100:
         loan_data = parse_loan_data(message['content'])
         
-        # Generate PDFs
-        report_pdf = generate_loan_report(loan_data)
-        letter_pdf = generate_decision_letter(loan_data)
-        
-        # Display download links as if the AI generated them
+        # AI follow-up message about documents
         st.markdown(f'''
-        <div style="max-width: 70%; margin: 0.5rem 0 1rem 3rem;">
+        <div style="max-width: 70%; margin: 0.5rem 0 1rem 0;">
             <div class="message bot">
                 <div class="message-avatar">🤖</div>
                 <div class="message-content">
-                    I've generated your loan documents:
+                    I've generated your professional loan documents. You can download them below:
                     <br><br>
-                    📊 <strong>Detailed Analysis Report</strong> - Complete loan assessment
+                    📊 <strong>Detailed Analysis Report</strong> - Complete loan assessment with decision rationale
                     <br>
-                    📝 <strong>Official Decision Letter</strong> - Formal bank correspondence
+                    📝 <strong>Official Decision Letter</strong> - Formal correspondence on bank letterhead
                     <br><br>
-                    Would you like me to regenerate these with any additional details or modifications?
+                    Would you like me to regenerate these with any additional details?
                 </div>
+            </div>
+        </div>
+        ''', unsafe_allow_html=True)
+        
+        # Download section with working buttons  
+        st.markdown('''
+        <div style="background: #e3f2fd; border: 2px solid #2196f3; border-radius: 12px; 
+                    padding: 1.5rem; margin: 1rem 0; text-align: center;">
+            <div style="font-size: 1.1rem; font-weight: 600; color: #0d47a1; margin-bottom: 1rem;">
+                📄 Your Loan Documents Are Ready
             </div>
         </div>
         ''', unsafe_allow_html=True)
@@ -478,23 +484,32 @@ for i, message in enumerate(st.session_state.chat_messages):
         # Download buttons
         col1, col2 = st.columns(2)
         with col1:
-            st.download_button(
-                label="📊 Download Report",
-                data=report_pdf,
-                file_name=f"Loan_Analysis_Report.pdf",
-                mime="application/pdf",
-                key=f"report_{i}",
-                use_container_width=True
-            )
+            try:
+                report_pdf = generate_loan_report(loan_data)
+                st.download_button(
+                    label="📊 Download Detailed Report",
+                    data=report_pdf,
+                    file_name=f"GITEX_Loan_Report_{loan_data['applicant_name'].replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    key=f"report_{i}",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Report generation error: {str(e)}")
+        
         with col2:
-            st.download_button(
-                label="📝 Download Letter",
-                data=letter_pdf,
-                file_name=f"Decision_Letter.pdf",
-                mime="application/pdf",
-                key=f"letter_{i}",
-                use_container_width=True
-            )
+            try:
+                letter_pdf = generate_decision_letter(loan_data)
+                st.download_button(
+                    label="📝 Download Decision Letter",
+                    data=letter_pdf,
+                    file_name=f"GITEX_Decision_Letter_{loan_data['applicant_name'].replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    key=f"letter_{i}",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Letter generation error: {str(e)}")
 
 # Show typing indicator when processing
 if st.session_state.processing:

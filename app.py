@@ -469,8 +469,8 @@ Be professional and comprehensive in your response."""
         
         # Call Bedrock agent using AWS documentation format
         response = bedrock.invoke_agent(
-            agentId=agent_id,
-            agentAliasId=agent_alias_id,
+            agentId=current_agent_id,
+            agentAliasId=current_agent_alias_id,
             enableTrace=False,
             sessionId=st.session_state.session_id,
             inputText=prompt

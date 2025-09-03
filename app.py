@@ -13,8 +13,8 @@ import io
 
 # Configure page
 st.set_page_config(
-    page_title="GITEX Demo Bank - Loan Processing",
-    page_icon="🏦",
+    page_title="DESCASIO - AWS AI Bedrock Agent Demo",
+    page_icon="⚡",
     layout="wide"
 )
 
@@ -718,8 +718,8 @@ We value your interest in our services and hope to have the opportunity to serve
     # Closing
     story.append(Paragraph("Sincerely,", styles['Normal']))
     story.append(Spacer(1, 30))
-    story.append(Paragraph("GITEX DEMO BANK", ParagraphStyle('Signature', parent=styles['Normal'], fontName='Helvetica-Bold')))
-    story.append(Paragraph("Automated Loan Processing Division", styles['Normal']))
+    story.append(Paragraph("DESCASIO", ParagraphStyle('Signature', parent=styles['Normal'], fontName='Helvetica-Bold')))
+    story.append(Paragraph("AWS AI Bedrock Agent Demo", styles['Normal']))
     
     doc.build(story)
     buffer.seek(0)

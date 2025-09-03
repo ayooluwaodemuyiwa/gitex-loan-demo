@@ -338,6 +338,7 @@ st.markdown('''
 # Get configuration from secrets (hidden from UI)
 try:
     agent_id = st.secrets.get("AGENT_ID", "")
+    agent_alias_id = st.secrets.get("AGENT_ALIAS_ID", "TSTALIASID")  # Default alias ID
     aws_access_key = st.secrets.get("AWS_ACCESS_KEY_ID", "")
     aws_secret_key = st.secrets.get("AWS_SECRET_ACCESS_KEY", "")
     aws_region = st.secrets.get("AWS_REGION", "eu-west-2")  # Default to London region
@@ -467,10 +468,10 @@ Please analyze this loan request and provide:
 
 Be professional and comprehensive in your response."""
         
-        # Call Bedrock agent using AWS documentation format
+        # Call Bedrock agent using the correct variable names
         response = bedrock.invoke_agent(
-            agentId=current_agent_id,
-            agentAliasId=current_agent_alias_id,
+            agentId=agent_id,  # Fixed: use agent_id instead of current_agent_id
+            agentAliasId=agent_alias_id,  # Fixed: use agent_alias_id instead of current_agent_alias_id
             enableTrace=False,
             sessionId=st.session_state.session_id,
             inputText=prompt

@@ -340,6 +340,7 @@ try:
     agent_id = st.secrets.get("AGENT_ID", "")
     aws_access_key = st.secrets.get("AWS_ACCESS_KEY_ID", "")
     aws_secret_key = st.secrets.get("AWS_SECRET_ACCESS_KEY", "")
+    aws_region = st.secrets.get("AWS_REGION", "eu-west-2")  # Default to London region
     
     if not agent_id:
         st.error("🔧 **Configuration Required**: Please add your AGENT_ID to Streamlit secrets")
@@ -355,12 +356,12 @@ def get_bedrock_client():
     try:
         return boto3.client(
             'bedrock-agent-runtime',
-            region_name='us-east-1',
+            region_name=aws_region,
             aws_access_key_id=aws_access_key,
             aws_secret_access_key=aws_secret_key
         )
     except Exception as e:
-        st.error(f" **AWS Connection Failed**: {str(e)}")
+        st.error(f"❌ **AWS Connection Failed**: {str(e)}")
         return None
 
 # Main interface
@@ -417,15 +418,15 @@ col1, col2, col3 = st.columns([1, 2, 1])
 
 with col2:
     if uploaded_file and not st.session_state.processing:
-        if st.button(" Process Application", type="primary", use_container_width=True):
+        if st.button("🚀 Process Application", type="primary", use_container_width=True):
             st.session_state.processing = True
             st.rerun()
     elif user_message.strip() and not st.session_state.processing:
-        if st.button(" Submit Loan Request", type="primary", use_container_width=True):
+        if st.button("💬 Submit Loan Request", type="primary", use_container_width=True):
             st.session_state.processing = True
             st.rerun()
     elif st.session_state.processing:
-        st.markdown('<div class="processing-indicator"> Processing your request...</div>', unsafe_allow_html=True)
+        st.markdown('<div class="processing-indicator">🤖 Processing your request...</div>', unsafe_allow_html=True)
     else:
         st.button("Please upload a file or describe your request", disabled=True, use_container_width=True)
 
@@ -436,7 +437,7 @@ def call_bedrock_agent(message, file_name=None):
     bedrock = get_bedrock_client()
     
     if not bedrock:
-        return " Unable to connect to loan processing system. Please try again."
+        return "❌ Unable to connect to loan processing system. Please try again."
     
     try:
         # Prepare prompt
@@ -466,25 +467,26 @@ Please analyze this loan request and provide:
 
 Be professional and comprehensive in your response."""
         
-        # Call Bedrock agent
+        # Call Bedrock agent using AWS documentation format
         response = bedrock.invoke_agent(
             agentId=agent_id,
-            agentAliasId="TSTALIASID",
+            agentAliasId=agent_alias_id,
+            enableTrace=False,
             sessionId=st.session_state.session_id,
             inputText=prompt
         )
         
-        # Extract response text
-        response_text = ""
-        for event in response.get('completion', []):
+        # Extract response text using AWS documentation method
+        completion = ""
+        for event in response.get("completion", []):
             if 'chunk' in event:
-                chunk_bytes = event['chunk'].get('bytes', b'')
-                response_text += chunk_bytes.decode('utf-8')
+                chunk = event["chunk"]
+                completion += chunk["bytes"].decode()
         
-        return response_text if response_text else "No response received from the loan processing system."
+        return completion if completion else "No response received from the loan processing system."
         
     except Exception as e:
-        return f" Processing error: {str(e)}"
+        return f"❌ Processing error: {str(e)}"
 
 # Parse loan data from agent response
 def parse_loan_data(response_text):
@@ -751,16 +753,16 @@ if st.session_state.processing:
 # Display results
 if st.session_state.last_response:
     st.markdown('<div class="response-container">', unsafe_allow_html=True)
-    st.markdown("### AI Loan Officer Decision")
+    st.markdown("### 🤖 AI Loan Officer Decision")
     
     # Parse loan data
     loan_data = parse_loan_data(st.session_state.last_response)
     
     # Show decision badge
     if loan_data['decision'] == 'APPROVED':
-        st.markdown('<div class="status-approved"> Loan Approved</div>', unsafe_allow_html=True)
+        st.markdown('<div class="status-approved">✅ Loan Approved</div>', unsafe_allow_html=True)
     elif loan_data['decision'] == 'REJECTED':
-        st.markdown('<div class="status-rejected"> Loan Declined</div>', unsafe_allow_html=True)
+        st.markdown('<div class="status-rejected">❌ Loan Declined</div>', unsafe_allow_html=True)
     
     # Show agent response
     st.markdown('<div class="agent-response">', unsafe_allow_html=True)
@@ -769,7 +771,7 @@ if st.session_state.last_response:
     
     # Generate and offer downloads
     st.markdown('<div class="download-section">', unsafe_allow_html=True)
-    st.markdown('<div class="download-title"> Professional Documents Generated</div>', unsafe_allow_html=True)
+    st.markdown('<div class="download-title">📄 Professional Documents Generated</div>', unsafe_allow_html=True)
     st.markdown('<div class="download-subtitle">Your personalized loan documents are ready for download</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
@@ -779,7 +781,7 @@ if st.session_state.last_response:
         try:
             report_pdf = generate_loan_report(loan_data)
             st.download_button(
-                label="Download Detailed Report",
+                label="📊 Download Detailed Report",
                 data=report_pdf,
                 file_name=f"GITEX_Loan_Report_{loan_data['applicant_name'].replace(' ', '_')}.pdf",
                 mime="application/pdf",
@@ -793,7 +795,7 @@ if st.session_state.last_response:
         try:
             letter_pdf = generate_decision_letter(loan_data)
             st.download_button(
-                label="Download Decision Letter",
+                label="📝 Download Decision Letter",
                 data=letter_pdf,
                 file_name=f"GITEX_Decision_Letter_{loan_data['applicant_name'].replace(' ', '_')}.pdf",
                 mime="application/pdf",

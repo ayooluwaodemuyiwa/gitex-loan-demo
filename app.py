@@ -10,7 +10,19 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.colors import HexColor, black, white
 import io
-import PyPDF2
+
+# Try to import PDF reading library
+try:
+    import PyPDF2
+    PDF_READING_AVAILABLE = True
+except ImportError:
+    try:
+        import fitz  # PyMuPDF
+        PDF_READING_AVAILABLE = True
+        USE_PYMUPDF = True
+    except ImportError:
+        PDF_READING_AVAILABLE = False
+        USE_PYMUPDF = False
 
 # Configure page
 st.set_page_config(
@@ -224,7 +236,7 @@ if 'chat_messages' not in st.session_state:
     st.session_state.chat_messages = [
         {
             'role': 'bot',
-            'content': "Hello! I'm your AI loan officer. I can help you apply for a business loan. You can either upload your completed application or tell me about your financing needs. What would you like to do?",
+            'content': f"Hello! I'm your AI loan officer. I can help you apply for a business loan. You can either upload your completed application or tell me about your financing needs. {'PDF reading is enabled - I can analyze your documents.' if PDF_READING_AVAILABLE else 'Note: PDF text extraction not available, but I can still process file uploads.'} What would you like to do?",
             'timestamp': datetime.now()
         }
     ]
@@ -272,16 +284,30 @@ def get_bedrock_client():
 # Helper functions
 def read_pdf_content(uploaded_file):
     """Extract text content from uploaded PDF file"""
+    if not PDF_READING_AVAILABLE:
+        return f"PDF file uploaded: {uploaded_file.name}. Note: PDF text extraction not available, but file received for processing."
+    
     try:
-        pdf_reader = PyPDF2.PdfReader(uploaded_file)
-        text_content = ""
-        
-        for page in pdf_reader.pages:
-            text_content += page.extract_text() + "\n"
-        
-        return text_content.strip()
+        if 'USE_PYMUPDF' in globals() and USE_PYMUPDF:
+            # Use PyMuPDF
+            uploaded_file.seek(0)
+            doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+            text_content = ""
+            for page in doc:
+                text_content += page.get_text() + "\n"
+            doc.close()
+            return text_content.strip()
+        else:
+            # Use PyPDF2
+            uploaded_file.seek(0)
+            pdf_reader = PyPDF2.PdfReader(uploaded_file)
+            text_content = ""
+            for page in pdf_reader.pages:
+                text_content += page.extract_text() + "\n"
+            return text_content.strip()
+            
     except Exception as e:
-        return f"Error reading PDF: {str(e)}"
+        return f"PDF file uploaded: {uploaded_file.name}. Error extracting text: {str(e)}. File received for processing."
 
 def parse_loan_data(response_text):
     try:
@@ -425,20 +451,21 @@ def call_bedrock_agent(message, file_content=None, file_name=None):
     
     try:
         if file_content:
-            prompt = f"""Please analyze this loan application document. Here is the complete content:
+            prompt = f"""Please analyze this loan application document. Here is the complete content from the uploaded PDF:
 
+DOCUMENT CONTENT:
 {file_content}
 
-Based on this loan application, please provide a comprehensive analysis including:
-- Applicant information
+Based on this loan application document, please provide a comprehensive analysis including:
+- Applicant information extracted from the document
 - Loan amount requested  
 - Your recommendation (APPROVED/REJECTED)
 - Interest rate (if approved)
-- Key decision factors
+- Key decision factors based on the document content
 - Risk assessment
 - Any conditions or requirements
 
-Be professional and thorough in your analysis."""
+Be professional and thorough in your analysis based on the actual document content provided."""
         else:
             prompt = f"As a loan officer, please analyze this request: {message}. Provide a decision (APPROVED/REJECTED) with clear reasoning and terms if approved."
         

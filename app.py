@@ -11,19 +11,6 @@ from reportlab.lib.units import inch
 from reportlab.lib.colors import HexColor, black, white
 import io
 
-# Try to import PDF reading library
-try:
-    import PyPDF2
-    PDF_READING_AVAILABLE = True
-except ImportError:
-    try:
-        import fitz  # PyMuPDF
-        PDF_READING_AVAILABLE = True
-        USE_PYMUPDF = True
-    except ImportError:
-        PDF_READING_AVAILABLE = False
-        USE_PYMUPDF = False
-
 # Configure page
 st.set_page_config(
     page_title="DESCASIO - AWS AI Bedrock Agent Demo",
@@ -236,7 +223,7 @@ if 'chat_messages' not in st.session_state:
     st.session_state.chat_messages = [
         {
             'role': 'bot',
-            'content': f"Hello! I'm your AI loan officer. I can help you apply for a business loan. You can either upload your completed application or tell me about your financing needs. {'PDF reading is enabled - I can analyze your documents.' if PDF_READING_AVAILABLE else 'Note: PDF text extraction not available, but I can still process file uploads.'} What would you like to do?",
+            'content': "Hello! I'm your AI loan officer. I can help you apply for a business loan. You can either upload your completed application or tell me about your financing needs. What would you like to do?",
             'timestamp': datetime.now()
         }
     ]
@@ -258,11 +245,11 @@ try:
     aws_access_key = st.secrets.get("AWS_ACCESS_KEY_ID", "")
     aws_secret_key = st.secrets.get("AWS_SECRET_ACCESS_KEY", "")
     aws_region = st.secrets.get("AWS_REGION", "eu-west-2")
-    
+
     if not agent_id:
         st.error("Configuration Required: Please add your AGENT_ID to Streamlit secrets")
         st.stop()
-        
+
 except Exception:
     st.error("Configuration Required: Please add your AWS credentials")
     st.stop()
@@ -282,33 +269,6 @@ def get_bedrock_client():
         return None
 
 # Helper functions
-def read_pdf_content(uploaded_file):
-    """Extract text content from uploaded PDF file"""
-    if not PDF_READING_AVAILABLE:
-        return f"PDF file uploaded: {uploaded_file.name}. Note: PDF text extraction not available, but file received for processing."
-    
-    try:
-        if 'USE_PYMUPDF' in globals() and USE_PYMUPDF:
-            # Use PyMuPDF
-            uploaded_file.seek(0)
-            doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-            text_content = ""
-            for page in doc:
-                text_content += page.get_text() + "\n"
-            doc.close()
-            return text_content.strip()
-        else:
-            # Use PyPDF2
-            uploaded_file.seek(0)
-            pdf_reader = PyPDF2.PdfReader(uploaded_file)
-            text_content = ""
-            for page in pdf_reader.pages:
-                text_content += page.extract_text() + "\n"
-            return text_content.strip()
-            
-    except Exception as e:
-        return f"PDF file uploaded: {uploaded_file.name}. Error extracting text: {str(e)}. File received for processing."
-
 def parse_loan_data(response_text):
     try:
         applicant_name = "Loan Applicant"
@@ -320,7 +280,7 @@ def parse_loan_data(response_text):
                 if len(name_candidate.split()) <= 3:
                     applicant_name = name_candidate
                     break
-        
+
         loan_amount = 0
         amount_match = re.search(r'\$[\s]*([\d,]+)', response_text)
         if amount_match:
@@ -328,16 +288,16 @@ def parse_loan_data(response_text):
                 loan_amount = int(amount_match.group(1).replace(',', ''))
             except:
                 pass
-        
+
         decision = "PENDING"
         if re.search(r'\b(approved?|approve)\b', response_text, re.IGNORECASE):
             decision = "APPROVED"
         elif re.search(r'\b(rejected?|declined?|deny|denied)\b', response_text, re.IGNORECASE):
             decision = "REJECTED"
-        
+
         rate_match = re.search(r'(\d+\.?\d*)\s*%', response_text)
         interest_rate = float(rate_match.group(1)) if rate_match else 0
-        
+
         return {
             'applicant_name': applicant_name,
             'loan_amount': loan_amount,
@@ -361,7 +321,7 @@ def generate_loan_report(loan_data):
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
     story = []
-    
+
     # Custom styles
     title_style = ParagraphStyle(
         'Title',
@@ -372,11 +332,11 @@ def generate_loan_report(loan_data):
         alignment=1,
         fontName='Helvetica-Bold'
     )
-    
+
     story.append(Paragraph("GITEX DEMO BANK", title_style))
     story.append(Paragraph("COMPREHENSIVE LOAN ANALYSIS REPORT", title_style))
     story.append(Spacer(1, 30))
-    
+
     # Executive summary table
     summary_data = [
         ['Report Generated:', loan_data['timestamp']],
@@ -385,10 +345,10 @@ def generate_loan_report(loan_data):
         ['Final Decision:', loan_data['decision']],
         ['Processing System:', 'AI-Powered Multi-Agent Platform']
     ]
-    
+
     if loan_data['decision'] == 'APPROVED' and loan_data['interest_rate'] > 0:
         summary_data.append(['Approved Interest Rate:', f"{loan_data['interest_rate']}% per annum"])
-    
+
     summary_table = Table(summary_data, colWidths=[2.5*inch, 3.5*inch])
     summary_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (0,-1), HexColor('#f8f9fa')),
@@ -400,21 +360,21 @@ def generate_loan_report(loan_data):
         ('GRID', (0,0), (-1,-1), 1, HexColor('#e5e5e5')),
         ('ROWBACKGROUNDS', (0,0), (-1,-1), [white, HexColor('#f8f9fa')])
     ]))
-    
+
     story.append(summary_table)
     story.append(Spacer(1, 40))
-    
+
     # Analysis section
     story.append(Paragraph("DETAILED ANALYSIS & DECISION RATIONALE", styles['Heading2']))
-    
+
     response_text = loan_data['full_response']
     paragraphs = response_text.split('\n\n') if '\n\n' in response_text else [response_text]
-    
+
     for para in paragraphs:
         if para.strip():
             story.append(Paragraph(para.strip(), styles['Normal']))
             story.append(Spacer(1, 12))
-    
+
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
@@ -424,51 +384,37 @@ def generate_decision_letter(loan_data):
     doc = SimpleDocTemplate(buffer, pagesize=letter)
     styles = getSampleStyleSheet()
     story = []
-    
+
     story.append(Paragraph("GITEX DEMO BANK", styles['Title']))
     story.append(Spacer(1, 30))
     story.append(Paragraph(f"Dear {loan_data['applicant_name']},", styles['Normal']))
     story.append(Spacer(1, 20))
-    
+
     if loan_data['decision'] == 'APPROVED':
         content = "Congratulations! Your loan application has been approved."
     else:
         content = "Thank you for your application. We are unable to approve your loan at this time."
-    
+
     story.append(Paragraph(content, styles['Normal']))
     story.append(Spacer(1, 20))
     story.append(Paragraph("Sincerely,", styles['Normal']))
     story.append(Paragraph("GITEX Demo Bank", styles['Normal']))
-    
+
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
 
-def call_bedrock_agent(message, file_content=None, file_name=None):
+def call_bedrock_agent(message, file_name=None):
     bedrock = get_bedrock_client()
     if not bedrock:
         return "I'm having trouble connecting to our loan processing system. Please try again."
-    
+
     try:
-        if file_content:
-            prompt = f"""Please analyze this loan application document. Here is the complete content from the uploaded PDF:
-
-DOCUMENT CONTENT:
-{file_content}
-
-Based on this loan application document, please provide a comprehensive analysis including:
-- Applicant information extracted from the document
-- Loan amount requested  
-- Your recommendation (APPROVED/REJECTED)
-- Interest rate (if approved)
-- Key decision factors based on the document content
-- Risk assessment
-- Any conditions or requirements
-
-Be professional and thorough in your analysis based on the actual document content provided."""
+        if file_name:
+            prompt = f"Please analyze this loan application: {file_name}. Provide a comprehensive decision with reasons."
         else:
             prompt = f"As a loan officer, please analyze this request: {message}. Provide a decision (APPROVED/REJECTED) with clear reasoning and terms if approved."
-        
+
         response = bedrock.invoke_agent(
             agentId=agent_id,
             agentAliasId=agent_alias_id,
@@ -476,15 +422,15 @@ Be professional and thorough in your analysis based on the actual document conte
             sessionId=st.session_state.session_id,
             inputText=prompt
         )
-        
+
         completion = ""
         for event in response.get("completion", []):
             if 'chunk' in event:
                 chunk = event["chunk"]
                 completion += chunk["bytes"].decode()
-        
+
         return completion or "I apologize, but I didn't receive a proper response. Could you try again?"
-        
+
     except Exception as e:
         return f"I encountered an error processing your request: {str(e)}"
 
@@ -495,19 +441,23 @@ st.markdown('<div class="chat-container"><div class="chat-content">', unsafe_all
 for i, message in enumerate(st.session_state.chat_messages):
     role_class = "bot" if message['role'] == 'bot' else "user"
     avatar = "🤖" if message['role'] == 'bot' else "👤"
-    
+
     st.markdown(f'''
     <div class="message {role_class}">
         <div class="message-avatar">{avatar}</div>
         <div class="message-content">{message['content']}</div>
     </div>
     ''', unsafe_allow_html=True)
-    
+
     # Show download links if this is a loan decision
     if message['role'] == 'bot' and ('APPROVED' in message['content'] or 'REJECTED' in message['content']) and len(message['content']) > 100:
         loan_data = parse_loan_data(message['content'])
-        
+
         # AI follow-up message about documents
+
+
+
+
         st.markdown(f'''
         <div style="max-width: 70%; margin: 0.5rem 0 1rem 0;">
             <div class="message bot">
@@ -524,7 +474,7 @@ for i, message in enumerate(st.session_state.chat_messages):
             </div>
         </div>
         ''', unsafe_allow_html=True)
-        
+
         # Download section with working buttons  
         st.markdown('''
         <div style="background: #e3f2fd; border: 2px solid #2196f3; border-radius: 12px; 
@@ -584,59 +534,56 @@ if not st.session_state.processing:
     <div class="input-container">
         <div class="input-wrapper">
     ''', unsafe_allow_html=True)
-    
-    # Create form to handle both text and file input
-    with st.form(key="chat_form", clear_on_submit=True):
-        # Create columns for input, upload, and send
-        col1, col2 = st.columns([5, 1])
-        
-        with col1:
-            user_input = st.text_area(
-                "",
-                placeholder="Tell me about your loan needs...",
-                height=50,
-                key="user_input",
-                label_visibility="collapsed"
-            )
-        
-        with col2:
-            # File upload
-            uploaded_file = st.file_uploader(
-                "📎 Upload PDF",
-                type=['pdf'],
-                key="file_upload",
-                help="Upload loan application PDF"
-            )
-        
+
+    # Create columns for input, upload, and send
+    col1, col2, col3 = st.columns([6, 1, 1])
+
+    with col1:
+        user_input = st.text_area(
+            "",
+            placeholder="Tell me about your loan needs...",
+            height=50,
+            key="user_input",
+            label_visibility="collapsed"
+        )
+
+    with col2:
+        # File upload
+        uploaded_file = st.file_uploader(
+            "📎",
+            type=['pdf'],
+            key="file_upload",
+            help="Upload PDF",
+            label_visibility="collapsed"
+        )
+
+    with col3:
         # Send button
-        submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
-        
-        # Handle form submission
-        if submitted:
-            if uploaded_file is not None:
-                # Handle file upload - read PDF content
-                pdf_content = read_pdf_content(uploaded_file)
-                st.session_state.chat_messages.append({
-                    'role': 'user',
-                    'content': f"📄 Uploaded: {uploaded_file.name}",
-                    'timestamp': datetime.now()
-                })
-                st.session_state.processing = True
-                st.session_state.current_file_content = pdf_content
-                st.session_state.current_file_name = uploaded_file.name
-                st.rerun()
-            elif user_input.strip():
-                # Handle text message
-                st.session_state.chat_messages.append({
-                    'role': 'user',
-                    'content': user_input,
-                    'timestamp': datetime.now()
-                })
-                st.session_state.processing = True
-                st.session_state.current_file_content = None
-                st.session_state.current_file_name = None
-                st.rerun()
-    
+        send_clicked = st.button("Send", type="primary", use_container_width=True)
+
+    # Handle input
+    if send_clicked:
+        if uploaded_file:
+            # Handle file upload
+            st.session_state.chat_messages.append({
+                'role': 'user',
+                'content': f"📄 Uploaded: {uploaded_file.name}",
+                'timestamp': datetime.now()
+            })
+            st.session_state.processing = True
+            st.session_state.current_file = uploaded_file
+            st.rerun()
+        elif user_input.strip():
+            # Handle text message
+            st.session_state.chat_messages.append({
+                'role': 'user',
+                'content': user_input,
+                'timestamp': datetime.now()
+            })
+            st.session_state.processing = True
+            st.session_state.current_file = None
+            st.rerun()
+
     st.markdown('''
         </div>
     </div>
@@ -646,29 +593,21 @@ if not st.session_state.processing:
 if st.session_state.processing:
     # Get the last user message
     last_message = st.session_state.chat_messages[-1]
-    
+
     if last_message['role'] == 'user':
         # Check if it's a file upload
         if last_message['content'].startswith('📄 Uploaded:'):
-            # Use the PDF content we extracted
-            file_content = st.session_state.get('current_file_content', '')
-            file_name = st.session_state.get('current_file_name', 'document.pdf')
-            response = call_bedrock_agent("", file_content=file_content, file_name=file_name)
+            file_name = last_message['content'].replace('📄 Uploaded: ', '')
+            response = call_bedrock_agent("", file_name)
         else:
             response = call_bedrock_agent(last_message['content'])
-        
+
         # Add bot response
         st.session_state.chat_messages.append({
             'role': 'bot',
             'content': response,
             'timestamp': datetime.now()
         })
-        
-        # Clear file data
-        if 'current_file_content' in st.session_state:
-            del st.session_state.current_file_content
-        if 'current_file_name' in st.session_state:
-            del st.session_state.current_file_name
-        
+
         st.session_state.processing = False
         st.rerun()

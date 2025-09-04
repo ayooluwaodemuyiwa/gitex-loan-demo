@@ -10,6 +10,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib.colors import HexColor, black, white
 import io
+import PyPDF2
 
 # Configure page
 st.set_page_config(
@@ -269,6 +270,19 @@ def get_bedrock_client():
         return None
 
 # Helper functions
+def read_pdf_content(uploaded_file):
+    """Extract text content from uploaded PDF file"""
+    try:
+        pdf_reader = PyPDF2.PdfReader(uploaded_file)
+        text_content = ""
+        
+        for page in pdf_reader.pages:
+            text_content += page.extract_text() + "\n"
+        
+        return text_content.strip()
+    except Exception as e:
+        return f"Error reading PDF: {str(e)}"
+
 def parse_loan_data(response_text):
     try:
         applicant_name = "Loan Applicant"
@@ -404,14 +418,27 @@ def generate_decision_letter(loan_data):
     buffer.seek(0)
     return buffer.getvalue()
 
-def call_bedrock_agent(message, file_name=None):
+def call_bedrock_agent(message, file_content=None, file_name=None):
     bedrock = get_bedrock_client()
     if not bedrock:
         return "I'm having trouble connecting to our loan processing system. Please try again."
     
     try:
-        if file_name:
-            prompt = f"Please analyze this loan application: {file_name}. Provide a comprehensive decision with reasons."
+        if file_content:
+            prompt = f"""Please analyze this loan application document. Here is the complete content:
+
+{file_content}
+
+Based on this loan application, please provide a comprehensive analysis including:
+- Applicant information
+- Loan amount requested  
+- Your recommendation (APPROVED/REJECTED)
+- Interest rate (if approved)
+- Key decision factors
+- Risk assessment
+- Any conditions or requirements
+
+Be professional and thorough in your analysis."""
         else:
             prompt = f"As a loan officer, please analyze this request: {message}. Provide a decision (APPROVED/REJECTED) with clear reasoning and terms if approved."
         
@@ -531,54 +558,57 @@ if not st.session_state.processing:
         <div class="input-wrapper">
     ''', unsafe_allow_html=True)
     
-    # Create columns for input, upload, and send
-    col1, col2, col3 = st.columns([6, 1, 1])
-    
-    with col1:
-        user_input = st.text_area(
-            "",
-            placeholder="Tell me about your loan needs...",
-            height=50,
-            key="user_input",
-            label_visibility="collapsed"
-        )
-    
-    with col2:
-        # File upload
-        uploaded_file = st.file_uploader(
-            "📎",
-            type=['pdf'],
-            key="file_upload",
-            help="Upload PDF",
-            label_visibility="collapsed"
-        )
-    
-    with col3:
+    # Create form to handle both text and file input
+    with st.form(key="chat_form", clear_on_submit=True):
+        # Create columns for input, upload, and send
+        col1, col2 = st.columns([5, 1])
+        
+        with col1:
+            user_input = st.text_area(
+                "",
+                placeholder="Tell me about your loan needs...",
+                height=50,
+                key="user_input",
+                label_visibility="collapsed"
+            )
+        
+        with col2:
+            # File upload
+            uploaded_file = st.file_uploader(
+                "📎 Upload PDF",
+                type=['pdf'],
+                key="file_upload",
+                help="Upload loan application PDF"
+            )
+        
         # Send button
-        send_clicked = st.button("Send", type="primary", use_container_width=True)
-    
-    # Handle input
-    if send_clicked:
-        if uploaded_file:
-            # Handle file upload
-            st.session_state.chat_messages.append({
-                'role': 'user',
-                'content': f"📄 Uploaded: {uploaded_file.name}",
-                'timestamp': datetime.now()
-            })
-            st.session_state.processing = True
-            st.session_state.current_file = uploaded_file
-            st.rerun()
-        elif user_input.strip():
-            # Handle text message
-            st.session_state.chat_messages.append({
-                'role': 'user',
-                'content': user_input,
-                'timestamp': datetime.now()
-            })
-            st.session_state.processing = True
-            st.session_state.current_file = None
-            st.rerun()
+        submitted = st.form_submit_button("Send", type="primary", use_container_width=True)
+        
+        # Handle form submission
+        if submitted:
+            if uploaded_file is not None:
+                # Handle file upload - read PDF content
+                pdf_content = read_pdf_content(uploaded_file)
+                st.session_state.chat_messages.append({
+                    'role': 'user',
+                    'content': f"📄 Uploaded: {uploaded_file.name}",
+                    'timestamp': datetime.now()
+                })
+                st.session_state.processing = True
+                st.session_state.current_file_content = pdf_content
+                st.session_state.current_file_name = uploaded_file.name
+                st.rerun()
+            elif user_input.strip():
+                # Handle text message
+                st.session_state.chat_messages.append({
+                    'role': 'user',
+                    'content': user_input,
+                    'timestamp': datetime.now()
+                })
+                st.session_state.processing = True
+                st.session_state.current_file_content = None
+                st.session_state.current_file_name = None
+                st.rerun()
     
     st.markdown('''
         </div>
@@ -593,8 +623,10 @@ if st.session_state.processing:
     if last_message['role'] == 'user':
         # Check if it's a file upload
         if last_message['content'].startswith('📄 Uploaded:'):
-            file_name = last_message['content'].replace('📄 Uploaded: ', '')
-            response = call_bedrock_agent("", file_name)
+            # Use the PDF content we extracted
+            file_content = st.session_state.get('current_file_content', '')
+            file_name = st.session_state.get('current_file_name', 'document.pdf')
+            response = call_bedrock_agent("", file_content=file_content, file_name=file_name)
         else:
             response = call_bedrock_agent(last_message['content'])
         
@@ -604,6 +636,12 @@ if st.session_state.processing:
             'content': response,
             'timestamp': datetime.now()
         })
+        
+        # Clear file data
+        if 'current_file_content' in st.session_state:
+            del st.session_state.current_file_content
+        if 'current_file_name' in st.session_state:
+            del st.session_state.current_file_name
         
         st.session_state.processing = False
         st.rerun()
